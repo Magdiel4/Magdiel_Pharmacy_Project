@@ -1,0 +1,8 @@
+node_modules/
+**/dist/
+package-lock.json
+.env*
+server/data/
+supabase/local/
+docs/screenshots/
+coverage/

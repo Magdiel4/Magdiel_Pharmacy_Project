@@ -1,0 +1,351 @@
+import {
+  ArrowUpRight,
+  Building2,
+  Wallet,
+  Package,
+  Truck,
+  ArrowRight,
+  AlertTriangle,
+  Clock3,
+  CircleCheck,
+  TrendingUp,
+} from 'lucide-react';
+import { Stat, Badge, Empty } from '../components/UI';
+import { currency, number, localToday } from '../utils/format';
+export default function Dashboard({ data, allData, user, setPage, modules }) {
+  const cash = data.cash_entries;
+  const income = cash.filter((c) => c.type === 'Ingreso').reduce((s, c) => s + Number(c.amount), 0),
+    expense = cash.filter((c) => c.type === 'Egreso').reduce((s, c) => s + Number(c.amount), 0);
+  const activeOrders = data.orders.filter((o) => !['Entregado', 'Cancelado'].includes(o.status));
+  const stock = data.inventory.reduce((s, b) => s + Number(b.quantity) - Number(b.reserved), 0);
+  const today = localToday();
+  const soon = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  const expiring = data.inventory.filter(
+    (b) => Number(b.quantity) > 0 && b.expires_at && b.expires_at <= soon,
+  );
+  const low = data.branches
+    .flatMap((b) =>
+      data.products.map((p) => ({
+        p,
+        b,
+        qty: data.inventory
+          .filter(
+            (i) =>
+              i.branch_id === b.id &&
+              i.product_id === p.id &&
+              (!i.expires_at || i.expires_at > today),
+          )
+          .reduce((s, i) => s + Number(i.quantity) - Number(i.reserved), 0),
+      })),
+    )
+    .filter((r) => r.qty < Number(r.p.min_stock));
+  const branches = data.branches.map((b) => ({
+    ...b,
+    income: cash
+      .filter((c) => c.branch_id === b.id && c.type === 'Ingreso')
+      .reduce((s, c) => s + Number(c.amount), 0),
+    expense: cash
+      .filter((c) => c.branch_id === b.id && c.type === 'Egreso')
+      .reduce((s, c) => s + Number(c.amount), 0),
+  }));
+  const max = Math.max(1, ...branches.map((b) => Math.max(b.income, b.expense)));
+  const recent = [...cash].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 4);
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <h1>
+            Tu operación, en perspectiva<span>.</span>
+          </h1>
+          <p>Todo lo que necesitas saber de Farmacias Alvarado, en un solo lugar.</p>
+        </div>
+        <span className="live-tag">
+          <i /> Vista consolidada
+        </span>
+      </div>
+      <section className="welcome-banner">
+        <div>
+          <span className="eyebrow">CONTROL DE OPERACIONES</span>
+          <h2>Buen día, {user.name.split(' ')[0]}</h2>
+          <p>
+            {data.branches.filter((b) => b.active).length} sucursales activas. Revisa existencias,
+            movimientos y entregas desde un mismo lugar.
+          </p>
+        </div>
+        <div className="welcome-art" aria-hidden="true">
+          <div className="art-orbit one" />
+          <div className="art-orbit two" />
+          <span className="art-cross">+</span>
+          <span className="art-dot" />
+          <span className="art-small-cross">+</span>
+        </div>
+      </section>
+      <div className="stats-grid">
+        <Stat
+          label="Sucursales activas"
+          value={number(data.branches.filter((b) => b.active).length)}
+          detail="Centros comerciales y gasolineras"
+          icon={Building2}
+        />
+        <Stat
+          label={modules.includes('cash') ? 'Saldo de movimientos' : 'Empleados activos'}
+          value={
+            modules.includes('cash')
+              ? currency(income - expense)
+              : number(data.employees.filter((e) => e.active).length)
+          }
+          detail={
+            modules.includes('cash')
+              ? 'Todos los medios · registros acumulados'
+              : 'Personal registrado en la red'
+          }
+          icon={Wallet}
+          tone="blue"
+        />
+        <Stat
+          label="Unidades sin reservar"
+          value={number(stock)}
+          detail="Consulta vencimientos antes de vender"
+          icon={Package}
+          tone="purple"
+        />
+        <Stat
+          label="Entregas en proceso"
+          value={number(activeOrders.length)}
+          detail={`${data.orders.filter((o) => o.status === 'Entregado').length} pedidos entregados`}
+          icon={Truck}
+          tone="amber"
+        />
+      </div>
+      <div className="dashboard-middle">
+        <section className="panel cash-chart">
+          <div className="panel-heading">
+            <div>
+              <h2>{modules.includes('cash') ? 'Flujo por sucursal' : 'Tu red de sucursales'}</h2>
+              <p>
+                {modules.includes('cash')
+                  ? 'Ingresos y egresos registrados · GTQ'
+                  : 'Ubicaciones registradas en el sistema'}
+              </p>
+            </div>
+            <span className="subtle-pill">Acumulado</span>
+          </div>
+          {modules.includes('cash') ? (
+            <>
+              <div className="chart-summary">
+                <strong>{currency(income)}</strong>
+                <span>Total de ingresos</span>
+                <div className="chart-legend">
+                  <span>
+                    <i />
+                    Ingresos
+                  </span>
+                  <span>
+                    <i />
+                    Egresos
+                  </span>
+                </div>
+              </div>
+              <div className="bar-chart">
+                {branches.map((b) => (
+                  <div className="bar-group" key={b.id}>
+                    <div className="bar-pair">
+                      <div
+                        className="bar income"
+                        style={{ height: `${Math.max(2, (b.income / max) * 100)}%` }}
+                        title={`Ingresos: ${currency(b.income)}`}
+                      >
+                        <span>{currency(b.income)}</span>
+                      </div>
+                      <div
+                        className="bar expense"
+                        style={{ height: `${Math.max(2, (b.expense / max) * 100)}%` }}
+                        title={`Egresos: ${currency(b.expense)}`}
+                      />
+                    </div>
+                    <span>{b.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="chart-foot">
+                <TrendingUp size={16} /> Los saldos reflejan únicamente movimientos registrados.
+              </div>
+            </>
+          ) : (
+            <div className="branch-directory">
+              {data.branches.map((b) => (
+                <div key={b.id}>
+                  <span className="icon-tile green">
+                    <Building2 size={20} />
+                  </span>
+                  <div>
+                    <strong>{b.name}</strong>
+                    <small>
+                      {b.department} · {b.type}
+                    </small>
+                  </div>
+                  <Badge>{b.active ? 'Activo' : 'Inactivo'}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="panel attention">
+          <div className="panel-heading">
+            <div>
+              <h2>Requiere tu atención</h2>
+              <p>Anticípate a lo importante</p>
+            </div>
+            <span className="count-bubble">{low.length + expiring.length}</span>
+          </div>
+          <div className="alert-item">
+            <span className="alert-icon amber">
+              <Package size={20} />
+            </span>
+            <div>
+              <strong>{low.length} existencias bajo mínimo</strong>
+              <p>Revisa el abastecimiento por sucursal.</p>
+              {modules.includes('inventory') && (
+                <button className="text-button" onClick={() => setPage('inventory')}>
+                  Revisar inventario <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="alert-item">
+            <span className="alert-icon red">
+              <Clock3 size={20} />
+            </span>
+            <div>
+              <strong>{expiring.length} lotes a revisar</strong>
+              <p>Vencidos o con vencimiento en los próximos 90 días.</p>
+              {modules.includes('inventory') && (
+                <button className="text-button" onClick={() => setPage('inventory')}>
+                  Consultar lotes <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="alert-item">
+            <span className="alert-icon blue">
+              <Truck size={20} />
+            </span>
+            <div>
+              <strong>
+                {data.transfers.filter((t) => t.status === 'En tránsito').length} traslados en
+                camino
+              </strong>
+              <p>Confirma la recepción en su destino.</p>
+              {modules.includes('transfers') && (
+                <button className="text-button" onClick={() => setPage('transfers')}>
+                  Ver traslados <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="attention-note">
+            <ShieldIcon /> Cada movimiento cuenta con trazabilidad.
+          </div>
+        </section>
+      </div>
+      <div className="dashboard-bottom">
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>{modules.includes('cash') ? 'Movimientos recientes' : 'Accesos de tu cuenta'}</h2>
+              <p>
+                {modules.includes('cash')
+                  ? 'Actividad financiera de tu operación'
+                  : 'Módulos disponibles para tu rol'}
+              </p>
+            </div>
+            {modules.includes('cash') && (
+              <button className="text-button" onClick={() => setPage('cash')}>
+                Ver todos <ArrowUpRight size={16} />
+              </button>
+            )}
+          </div>
+          {modules.includes('cash') ? (
+            recent.length ? (
+              <div className="recent-list">
+                {recent.map((c) => (
+                  <div key={c.id}>
+                    <span
+                      className={`transaction-icon ${c.type === 'Ingreso' ? 'green' : 'amber'}`}
+                    >
+                      <ArrowUpRight size={18} />
+                    </span>
+                    <div>
+                      <strong>{c.concept}</strong>
+                      <small>
+                        {allData.branches.find((b) => b.id === c.branch_id)?.name} · {c.method}
+                      </small>
+                    </div>
+                    <strong className={c.type === 'Ingreso' ? 'positive' : ''}>
+                      {c.type === 'Ingreso' ? '+' : '−'}
+                      {currency(c.amount)}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty />
+            )
+          ) : (
+            <div className="module-links">
+              {modules
+                .filter((m) => m !== 'dashboard')
+                .map((m) => (
+                  <button key={m} onClick={() => setPage(m)}>
+                    {{
+                      employees: 'Empleados',
+                      payroll: 'Nómina',
+                      branches: 'Sucursales',
+                      inventory: 'Inventario',
+                      orders: 'Pedidos',
+                      transfers: 'Traslados',
+                    }[m] || m}
+                    <ArrowUpRight size={16} />
+                  </button>
+                ))}
+            </div>
+          )}
+        </section>
+        <section className="network-card">
+          <div className="network-title">
+            <span className="icon-tile">
+              <Building2 size={19} />
+            </span>
+            <span>NUESTRA COBERTURA</span>
+          </div>
+          <h2>
+            Más cerca.
+            <br />
+            En cada departamento.
+          </h2>
+          <div className="network-cities">
+            {[...new Set(data.branches.map((b) => b.department))].map((d) => (
+              <span key={d}>
+                <i />
+                {d}
+              </span>
+            ))}
+          </div>
+          <div className="network-bottom">
+            <span>
+              <strong>{new Set(data.branches.map((b) => b.department)).size}</strong> departamentos
+            </span>
+            {modules.includes('branches') && (
+              <button aria-label="Ver sucursales" onClick={() => setPage('branches')}>
+                <ArrowUpRight size={22} />
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+function ShieldIcon() {
+  return <CircleCheck size={16} />;
+}

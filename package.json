@@ -1,0 +1,27 @@
+{
+  "name": "farma-alvar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "npm run test -w server",
+    "db:migrate": "npm run db:migrate -w server",
+    "db:seed": "npm run db:seed -w server",
+    "user:create": "npm run user:create -w server",
+    "format": "prettier --write client server/src server/scripts server/test scripts shared package.json .prettierrc.json server/package.json",
+    "format:check": "prettier --check client server/src server/scripts server/test scripts shared package.json .prettierrc.json server/package.json"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}
